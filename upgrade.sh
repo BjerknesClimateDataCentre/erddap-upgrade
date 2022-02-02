@@ -5,9 +5,9 @@
 # -----------
 # Default value
 # -----------
-server='bluecloud.icos-cp.eu'
-erddap='2.14'
-tomcat='9.0.41'
+server='erddap.localhost'
+erddap='2.16'
+tomcat='9.0.58'
 verbo=false
 install=false
 undo=false
@@ -39,6 +39,7 @@ show_help()
    echo -e "\n Note: by default the new release is installed in a tmp directory."
    echo -e   "       So you could check everythings before rerun the script to really install this release."
    echo -e "\n Examples:"
+   echo -e "\t./$(basename "$0") $server --erddap $erddap --tomcat $tomcat"
    echo -e "\t./$(basename "$0") bluecloud.icos-cp.eu --erddap $erddap --tomcat $tomcat"
    echo -e "\t./$(basename "$0") erddap.icos-cp.eu    --erddap $erddap --tomcat $tomcat"
 }
@@ -187,91 +188,94 @@ if ! ${undo} ; then
    fi
    # ---------------
    path_tmp=${path_server}/tmp
-   mkdir -p ${path_tmp}
-   if [ -d ${path_tmp}/${file_tomcat%"$suffix"} ] ; then
-      { echo "Error: Directory ${path_tmp}/${file_tomcat%$suffix} already exists."; exit 1;}
-   fi
-
-   fileout="${path_tmp}/upgrade.log"
-   echo $(date +"%Y-%m-%d")           > ${fileout}
-   echo -e "\nYou want to install:"  >> ${fileout}
-   echo -e "\tERDDAP-$erddap"        >> ${fileout}
-   echo -e "\tAPACHE-TOMCAT-$tomcat" >> ${fileout}
-   echo -e "\ton $server"            >> ${fileout}
-   # ---------------
-   # deploy a new version of apache-tomcat-xx (here after [tomcat]) in [server]
-   # ---------------
-   cp ${path_tomcat}/${file_tomcat} ${path_tmp}
-   gzip -d ${path_tmp}/${file_tomcat}
-   tar -xf ${path_tmp}/${file_tomcat%".gz"} -C ${path_tmp}
-   # clean
-   rm ${path_tmp}/${file_tomcat%".gz"}
-   #
    new=${path_tmp}/${file_tomcat%"$suffix"}
-   # ---------------
-   # deploy a new version of ERDDAP-X.XX
-   # ---------------
-   #
-   if [[ ${server} == *"localhost"* ]]; then
-      cp    ${path_erddap}/erddap.war           ${new}/webapps/erddap.war
+   mkdir -p ${path_tmp}
+   if [ -d ${new} ] ; then
+      echo "Warning: Directory ${path_tmp}/${file_tomcat%$suffix} already exists.";
+      echo -e "Some change may have been done. \n Do you want to continue with it"
+      pause
    else
-      rm -rf ${new}/webapps/ROOT
-      cp    ${path_erddap}/erddap.war           ${new}/webapps/ROOT.war
-   fi
-   unzip ${path_erddap}/erddapContent.zip -d ${new}                  > /dev/null 2>&1
+      fileout="${path_tmp}/upgrade.log"
+      echo $(date +"%Y-%m-%d")           > ${fileout}
+      echo -e "\nYou want to install:"  >> ${fileout}
+      echo -e "\tERDDAP-$erddap"        >> ${fileout}
+      echo -e "\tAPACHE-TOMCAT-$tomcat" >> ${fileout}
+      echo -e "\ton $server"            >> ${fileout}
+      # ---------------
+      # deploy a new version of apache-tomcat-xx (here after [tomcat]) in [server]
+      # ---------------
+      cp ${path_tomcat}/${file_tomcat} ${path_tmp}
+      gzip -d ${path_tmp}/${file_tomcat}
+      tar -xf ${path_tmp}/${file_tomcat%".gz"} -C ${path_tmp}
+      # clean
+      rm ${path_tmp}/${file_tomcat%".gz"}
+      #
+      # ---------------
+      # deploy a new version of ERDDAP-X.XX
+      # ---------------
+      #
+      if [[ ${server} == *"localhost"* ]]; then
+         cp    ${path_erddap}/erddap.war           ${new}/webapps/erddap.war
+      else
+         rm -rf ${new}/webapps/ROOT
+         cp    ${path_erddap}/erddap.war           ${new}/webapps/ROOT.war
+      fi
+      unzip ${path_erddap}/erddapContent.zip -d ${new}                  > /dev/null 2>&1
 
-   # ---------------
-   # copy/create ERDDAP-RELEASE
-   # ---------------
-   if [ ! -f ${old}/ERDDAP-RELEASE.md ] ; then
-      # no ERDDAP RELEASE file
-      echo '# Version'          > ${new}/ERDDAP-RELEASE.md
-   else
-      cp ${old}/ERDDAP-RELEASE.md ${new}
+      # ---------------
+      # copy/create ERDDAP-RELEASE
+      # ---------------
+      if [ ! -f ${old}/ERDDAP-RELEASE.md ] ; then
+         # no ERDDAP RELEASE file
+         echo '# Version'          > ${new}/ERDDAP-RELEASE.md
+      else
+         cp ${old}/ERDDAP-RELEASE.md ${new}
+      fi
+      sed -i "1 a$(date +"%Y-%m-%d") ERDDAP: ${erddap}" ${new}/ERDDAP-RELEASE.md
+      # ---------------
+      # make sone changes in [tomcat]/bin
+      # ---------------
+      ln -s ${path_server}/Erddap/Custom/bin/setenv.sh ${new}/bin
+      echo -e "\nCheck changes in [tomcat]/bin"  >> ${fileout}
+      echo -e "\t ${new}/bin/setenv.sh"          >> ${fileout}
+      # ---------------
+      # make sone changes in [tomcat]/conf
+      # ---------------
+      echo -e "\nCheck changes in [tomcat]/conf"  >> ${fileout}
+      mv ${new}/conf/context.xml ${new}/conf/context.xml.origin
+      mv ${new}/conf/server.xml  ${new}/conf/server.xml.origin
+      ln -s ${path_server}/Erddap/Custom/conf/context.xml ${new}/conf
+      ln -s ${path_server}/Erddap/Custom/conf/server.xml  ${new}/conf
+      echo -e "\tcheck diff with origin files:"                                  >> ${fileout}
+      echo -e "\tvim -d ${new}/conf/context.xml ${new}/conf/context.xml.origin"  >> ${fileout}
+      echo -e "\tvim -d ${new}/conf/server.xml  ${new}/conf/server.xml.origin"   >> ${fileout}
+      # ---------------
+      # make sone changes in [tomcat]/content
+      # ---------------
+      echo -e "\nCheck changes in [tomcat]/content"  >> ${fileout}
+      mv ${new}/content/erddap ${new}/content/erddap.origin
+      mkdir -p ${new}/content/erddap
+      ln -s ${path_server}/Erddap/Custom/content/erddap/images    ${new}/content/erddap
+      ln -s ${path_server}/Erddap/Custom/content/erddap/setup.xml ${new}/content/erddap
+      # copy datasets.xml from older release
+      if [ -f ${old}/content/erddap/datasets.xml ] ; then
+         cp ${old}/content/erddap/datasets.xml ${new}/content/erddap/datasets.xml
+      else
+         cp ${new}/content/erddap.origin/datasets.xml ${new}/content/erddap/datasets.xml
+      fi
+      echo -e "\tcheck diff with origin files:"                                     >> ${fileout}
+      echo -e "\tvim -d ${new}/content/erddap/setup.xml    ${new}/content/erddap.origin/setup.xml"   >> ${fileout}
+      echo -e "\tvim -d ${new}/content/erddap/datasets.xml ${new}/content/erddap.origin/datasets.xml">> ${fileout}
+      # ---------------
+      # make sone changes in [tomcat]/logs
+      # ---------------
+      cp -R ${old}/logs/* ${new}/logs/.
+      # ---------------
+      # make sone changes in [tomcat]/webapps
+      # ---------------
+      # cp -R ${old}/ROOT ${new}/.
+
    fi
-   sed -i "1 a$(date +"%Y-%m-%d") ERDDAP: ${erddap}" ${new}/ERDDAP-RELEASE.md
-   # ---------------
-   # make sone changes in [tomcat]/bin
-   # ---------------
-   ln -s ${path_server}/Erddap/Custom/bin/setenv.sh ${new}/bin
-   echo -e "\nCheck changes in [tomcat]/bin"  >> ${fileout}
-   echo -e "\t ${new}/bin/setenv.sh"          >> ${fileout}
-   # ---------------
-   # make sone changes in [tomcat]/conf
-   # ---------------
-   echo -e "\nCheck changes in [tomcat]/conf"  >> ${fileout}
-   mv ${new}/conf/context.xml ${new}/conf/context.xml.origin
-   mv ${new}/conf/server.xml  ${new}/conf/server.xml.origin
-   ln -s ${path_server}/Erddap/Custom/conf/context.xml ${new}/conf
-   ln -s ${path_server}/Erddap/Custom/conf/server.xml  ${new}/conf
-   echo -e "\tcheck diff with origin files:"                                  >> ${fileout}
-   echo -e "\tvim -d ${new}/conf/context.xml ${new}/conf/context.xml.origin"  >> ${fileout}
-   echo -e "\tvim -d ${new}/conf/server.xml  ${new}/conf/server.xml.origin"   >> ${fileout}
-   # ---------------
-   # make sone changes in [tomcat]/content
-   # ---------------
-   echo -e "\nCheck changes in [tomcat]/content"  >> ${fileout}
-   mv ${new}/content/erddap ${new}/content/erddap.origin
-   mkdir -p ${new}/content/erddap
-   ln -s ${path_server}/Erddap/Custom/content/erddap/images    ${new}/content/erddap
-   ln -s ${path_server}/Erddap/Custom/content/erddap/setup.xml ${new}/content/erddap
-   # copy datasets.xml from older release
-   if [ -f ${old}/content/erddap/datasets.xml ] ; then
-      cp ${old}/content/erddap/datasets.xml ${new}/content/erddap/datasets.xml
-   else
-      cp ${new}/content/erddap.origin/datasets.xml ${new}/content/erddap/datasets.xml
-   fi
-   echo -e "\tcheck diff with origin files:"                                     >> ${fileout}
-   echo -e "\tvim -d ${new}/content/erddap/setup.xml    ${new}/content/erddap.origin/setup.xml"   >> ${fileout}
-   echo -e "\tvim -d ${new}/content/erddap/datasets.xml ${new}/content/erddap.origin/datasets.xml">> ${fileout}
-   # ---------------
-   # make sone changes in [tomcat]/logs
-   # ---------------
-   cp -R ${old}/logs/* ${new}/logs/.
-   # ---------------
-   # make sone changes in [tomcat]/webapps
-   # ---------------
-   # cp -R ${old}/ROOT ${new}/.
 
    if $install ; then
       show_usage
