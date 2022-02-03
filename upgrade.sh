@@ -52,6 +52,7 @@ show_usage()
    echo -e "\terrdap: $erddap"
    echo -e "\tapache-tomcat: $tomcat"
    echo -e "\ton $server"
+   echo -e "$(java -version)"
 }
 
 get_crtime()
@@ -192,7 +193,7 @@ if ! ${undo} ; then
    mkdir -p ${path_tmp}
    if [ -d ${new} ] ; then
       echo "Warning: Directory ${path_tmp}/${file_tomcat%$suffix} already exists.";
-      echo -e "Some change may have been done. \n Do you want to continue with it"
+      echo -e "Some change may have been done. Do you want to continue with it"
       pause
    else
       fileout="${path_tmp}/upgrade.log"
@@ -201,6 +202,7 @@ if ! ${undo} ; then
       echo -e "\tERDDAP-$erddap"        >> ${fileout}
       echo -e "\tAPACHE-TOMCAT-$tomcat" >> ${fileout}
       echo -e "\ton $server"            >> ${fileout}
+      echo -e "\t$(java -version)"      >> ${fileout}
       # ---------------
       # deploy a new version of apache-tomcat-xx (here after [tomcat]) in [server]
       # ---------------
