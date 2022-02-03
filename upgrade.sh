@@ -252,7 +252,7 @@ if ! ${undo} ; then
       echo -e "\tvim -d ${new}/conf/context.xml ${new}/conf/context.xml.origin"  >> ${fileout}
       echo -e "\tvim -d ${new}/conf/server.xml  ${new}/conf/server.xml.origin"   >> ${fileout}
       # ---------------
-      # make sone changes in [tomcat]/content
+      # make some changes in [tomcat]/content
       # ---------------
       echo -e "\nCheck changes in [tomcat]/content"  >> ${fileout}
       mv ${new}/content/erddap ${new}/content/erddap.origin
@@ -271,7 +271,7 @@ if ! ${undo} ; then
       # ---------------
       # make sone changes in [tomcat]/logs
       # ---------------
-      cp -R ${old}/logs/* ${new}/logs/.
+      # cp -R ${old}/logs/* ${new}/logs/.
       # ---------------
       # make sone changes in [tomcat]/webapps
       # ---------------
@@ -295,12 +295,16 @@ if ! ${undo} ; then
       mv ${new} ${path_server} # new path is now ${path_server}/${file_tomcat%"$suffix"}
       rm ${path_server}/apache-tomcat
       ln -sf ${path_server}/${file_tomcat%"$suffix"} ${path_server}/apache-tomcat
+      # keep logs history
+      cp -R ${keep}/logs/* ${new}/logs/.
       # ---------------
       # restart apache-tomcat
       # ---------------
       ${path_server}/apache-tomcat/bin/startup.sh
       # clean
       rm -rf ${path_tmp}
+      # save space removing logs
+      rm -rf  ${keep}/logs/*
       # # keep archive
       # rm -rf ${keep}/webapps/ROOT # save space
       # tar -czf ${keep}.tgz ${keep}
@@ -344,19 +348,22 @@ else # undo
          # ---------------
          # install apache-tomcat to new release
          # ---------------
-         rm -rf ${new}
          if [ -d "${old}" ] ; then
             mv ${old} ${old%"_$d"}
             rm ${path_server}/apache-tomcat
             ln -sf ${old%"_$d"} ${path_server}/apache-tomcat
+            # keep logs history
+            cp -R ${new}/logs/* ${old}/logs/.
+            # remove new
+            rm -rf ${new}
             # ---------------
             # restart apache-tomcat
             # ---------------
             ${path_server}/apache-tomcat/bin/startup.sh
+         else
+            { echo "Error: can not undo. can not find directory ${old} " ; exit 1;}
          fi
       else
-         #if [ -d ${old} ] ; then
-         #   { echo "Error: can not undo. can not find directory ${old} " ; exit 1;}
          if [ -d "${new}" ] ; then
             { echo "Error: can not undo. can not find directory ${new} " ; exit 1;}
          fi
