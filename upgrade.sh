@@ -81,6 +81,43 @@ get_date()
    echo $d
 }
 
+get_tomcat()
+{
+   release=${1}
+   pathout=${2}
+   # create directory if need be
+   mkdir -p ${pathout}
+
+   wget https://dlcdn.apache.org/tomcat/tomcat-9/v${release}/bin/apache-tomcat-${release}.tar.gz -P ${pathout}
+   if [ $? -eq 0 ]; then
+      echo "Success downloading tomcat realease ${release}"
+   else
+      echo "Error downloading tomcat realease ${release}"
+      exit 1
+   fi
+
+}
+
+get_erddap()
+{
+   release=${1}
+   pathout=${2}
+   # create directory if need be
+   mkdir -p ${pathout}
+
+   list="erddap.war erddapContent.zip"
+   for f in $list ; do
+      wget https://github.com/BobSimons/erddap/releases/download/v${release}/${f} -P ${pathout}
+      if [ $? -eq 0 ]; then
+         echo "Success downloading erddap realease ${release}"
+      else
+         echo "Error downloading erddap realease ${release}"
+         rm -rf ${pathout}
+         exit 1
+      fi
+   done
+}
+
 # look for help argument first, to not overwrite default value
 [[ "$@" != "${@/--help/}" ]] && { show_help ; exit 0 ;}
 [[ "$@" != "${@/-h/}"     ]] && { show_help ; exit 0 ;}
@@ -152,7 +189,10 @@ if ! ${undo} ; then
       path_erddap=${erddap}
       erddap=$(basename ${erddap})
    fi
-   [ -d "${path_erddap}" ] || { echo "Error: Directory ${path_erddap} does not exists."; exit 1;}
+   # [ -d "${path_erddap}" ] || { echo "Error: Directory ${path_erddap} does not exists."; exit 1;}
+   if [ ! -d "${path_erddap}" ] ; then
+      get_erddap ${erddap} ${path_erddap}
+   fi
    # check erddap exist
    list="erddap.war erddapContent.zip"
    for file in $list ; do
@@ -175,7 +215,8 @@ if ! ${undo} ; then
    file="${path_tomcat}/${file_tomcat}"
    if [ ! -f ${file} ] ; then
       # if file does not exist, exit
-      { echo "Error: File ${file} does not exists."; exit 1;}
+      get_tomcat ${tomcat} ${path_tomcat}
+      # { echo "Error: File ${file} does not exists."; exit 1;}
    fi
 
    # ---------------
@@ -189,7 +230,7 @@ if ! ${undo} ; then
    fi
    # ---------------
    path_tmp=${path_server}/tmp
-   new=${path_tmp}/${file_tomcat%"$suffix"}
+   new=${path_tmp}/${file_tomcat%"$suffix"}_erddap-${erddap}
    mkdir -p ${path_tmp}
    if [ -d ${new} ] ; then
       echo "Warning: Directory ${path_tmp}/${file_tomcat%$suffix} already exists.";
@@ -211,6 +252,8 @@ if ! ${undo} ; then
       tar -xf ${path_tmp}/${file_tomcat%".gz"} -C ${path_tmp}
       # clean
       rm ${path_tmp}/${file_tomcat%".gz"}
+      # rename with erddap release
+      mv ${path_tmp}/${file_tomcat%"$suffix"} ${path_tmp}/${file_tomcat%"$suffix"}_erddap-${erddap}
       #
       # ---------------
       # deploy a new version of ERDDAP-X.XX
@@ -233,7 +276,7 @@ if ! ${undo} ; then
       else
          cp ${old}/ERDDAP-RELEASE.md ${new}
       fi
-      sed -i "1 a$(date +"%Y-%m-%d") ERDDAP: ${erddap}" ${new}/ERDDAP-RELEASE.md
+      sed -i "1 a$(date +"%Y-%m-%d") ERDDAP: ${erddap} TOMCAT: ${tomcat}" ${new}/ERDDAP-RELEASE.md
       # ---------------
       # make sone changes in [tomcat]/bin
       # ---------------
@@ -294,7 +337,7 @@ if ! ${undo} ; then
       mv ${old} ${keep}
       mv ${new} ${path_server} # new path is now ${path_server}/${file_tomcat%"$suffix"}
       rm ${path_server}/apache-tomcat
-      ln -sf ${path_server}/${file_tomcat%"$suffix"} ${path_server}/apache-tomcat
+      ln -sf ${path_server}/${file_tomcat%"$suffix"}_erddap-${erddap} ${path_server}/apache-tomcat
       # keep logs history
       cp -R ${keep}/logs/* ${new}/logs/.
       # ---------------
@@ -305,8 +348,8 @@ if ! ${undo} ; then
       rm -rf ${path_tmp}
       # save space removing logs
       rm -rf  ${keep}/logs/*
-      # # keep archive
-      # rm -rf ${keep}/webapps/ROOT # save space
+      # keep archive
+      rm -rf ${keep}/webapps/ROOT # save space
       # tar -czf ${keep}.tgz ${keep}
       # rm -rf ${keep}
    else
@@ -326,14 +369,17 @@ else # undo
       echo "new ${new}"
       if [ -d "${new}" ] ; then
          echo "You will remove former release"
-         erddap=$(sed -n '2p' ${new}/ERDDAP-RELEASE.md| cut -d':' -f2)
-         tomcat=$(basename ${new} | cut -d'-' -f3)
+         # erddap=$(sed -n '2p' ${new}/ERDDAP-RELEASE.md| cut -d':' -f2)
+         erddap=$(sed -n '2p' ${new}/ERDDAP-RELEASE.md| cut -d' ' -f3)
+         # tomcat=$(basename ${new} | cut -d'-' -f3)
+         tomcat=$(sed -n '2p' ${new}/ERDDAP-RELEASE.md| cut -d' ' -f5)
          echo -e "\terrdap: $erddap"
          echo -e "\tapache-tomcat: $tomcat"
          if [ -d "${old}" ] ; then
             echo "and reinstall release"
-            erddap=$(sed -n '3p' ${new}/ERDDAP-RELEASE.md| cut -d':' -f2)
-            tomcat=$(basename ${old%_${d}} | cut -d'-' -f3)
+            erddap=$(sed -n '3p' ${new}/ERDDAP-RELEASE.md| cut -d' ' -f3)
+            # tomcat=$(basename ${old%_${d}} | cut -d'-' -f3)
+            tomcat=$(sed -n '2p' ${old}/ERDDAP-RELEASE.md| cut -d' ' -f5)
             echo -e "\terrdap: $erddap"
             echo -e "\tapache-tomcat: $tomcat"
          fi
