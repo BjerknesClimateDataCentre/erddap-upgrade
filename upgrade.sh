@@ -26,7 +26,7 @@ pause ()
 
 show_help()
 {
-   echo -e "\n usage : $(basename "$0") server [-h] [-v] [-e [RELEASE]] [-a [REALEASE]]\n"
+   echo -e "\n usage : $(basename "$0") server [-h] [-v] [-e [RELEASE]] [-t [REALEASE]] [-i] [-u]\n"
    echo -e " positional arguments :"
    echo -e "\tserver                   server name"
    echo -e " optional arguments :"
